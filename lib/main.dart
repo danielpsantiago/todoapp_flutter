@@ -35,27 +35,15 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => new _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
+class _MyHomePageState extends State<MyHomePage> {
 
   List<Task> tasks;
-  var httpClient = new HttpClient();
+  var httpClient = new HttpClient();  
 
   @override
   void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
     getMyTasks();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-      getMyTasks();
+    super.initState();
   }
 
   getMyTasks() async {
@@ -65,7 +53,17 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
       var responseBody= await response.transform(UTF8.decoder).join();
       List list = JSON.decode(responseBody);
       setState(() {
-        tasks = list.map((it) => new Task.fromJson(it)).toList();
+        tasks = list.map((it) => new Task.fromJson(it)).where((it) => !it.deleted).toList();
+      });
+    }
+  }
+
+  deleteTask(String taskId) async {
+    var request = await httpClient.patchUrl(Uri.parse("http://35.224.54.61/tasks/delete?taskId=$taskId"));
+    var response = await request.close();
+    if (response.statusCode == HttpStatus.OK) {
+      setState(() {
+          tasks.remove(tasks.where((it) => it.id == taskId).first);
       });
     }
   }
@@ -91,6 +89,12 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
     return new Scaffold(
       appBar: new AppBar(
         title: new Text(widget.title),
+        actions: <Widget>[
+          new IconButton(
+            icon: new Icon(Icons.add),
+            onPressed: () { Navigator.of(context).pushNamed('/createTask').then((mockValue) => getMyTasks()); }
+          )
+        ],
       ),
       body: new Padding(
           padding: const EdgeInsets.only(top: 12.0, right: 8.0),
@@ -99,34 +103,38 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
               children:
                   tasks != null
                   ? tasks.map((task) {
-                    return new ListTile(
-                      onTap: null,
-                      title: new Row(
-                        children: <Widget>[
-                          new Checkbox(
-                            value: task.completed != null ? task.completed : false,
-                            onChanged: (bool value) { changeCompleteStatus(task, value); }
-                          ),
-                          new Expanded(
-                              child: new Text(
-                                task.name,
-                                style: new TextStyle(
-                                  decoration: task.completed != null && task.completed ? TextDecoration.lineThrough : TextDecoration.none
+                    return new Container(
+                      margin: const EdgeInsets.only(right: 8.0, top: 8.0, bottom: 8.0),
+                      child: new ListTile(
+                        onTap: null,
+                        title: new Row(
+                          children: <Widget>[
+                            new Checkbox(
+                              value: task.completed != null ? task.completed : false,
+                              onChanged: (bool value) { changeCompleteStatus(task, value); }
+                            ),
+                            new Expanded(
+                              child: new Container(
+                                margin: const EdgeInsets.only(right: 12.0),
+                                child: new Text(
+                                  task.name,
+                                  style: new TextStyle(
+                                      decoration: task.completed != null && task.completed ? TextDecoration.lineThrough : TextDecoration.none
+                                  ),
                                 ),
                               )
-                          ),
-                        ],
-                      ),
-
+                            ),
+                            new IconButton(
+                              icon: new Icon(Icons.delete),
+                              onPressed: () { deleteTask(task.id); },
+                            ),
+                          ],
+                        ),
+                      )
                     );
                   }).toList()
                   : [] ,
           ),
-      ),
-      floatingActionButton: new FloatingActionButton(
-        onPressed: () { Navigator.of(context).pushNamed('/createTask'); },
-        tooltip: 'Increment',
-        child: new Icon(Icons.add),
       ),
     );
   }
